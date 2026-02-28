@@ -8,13 +8,12 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e;min-height:100vh}
-
-/* ── AUTH ── */
-#auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#0a2342 0%,#0d5c63 100%);padding:1rem}
+#loading-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#0a2342,#0d5c63);color:white;font-size:1rem;gap:.75rem}
+#auth-screen{display:none;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#0a2342 0%,#0d5c63 100%);padding:1rem}
 .auth-card{background:white;border-radius:20px;padding:2.5rem;max-width:420px;width:100%;box-shadow:0 32px 80px rgba(0,0,0,0.35)}
 .auth-logo{width:64px;height:64px;background:linear-gradient(135deg,#0d7377,#0a2342);border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:2rem;margin:0 auto 1rem}
 .auth-title{font-family:'DM Serif Display',serif;font-size:1.7rem;color:#0a2342;text-align:center;margin-bottom:.25rem}
-.auth-sub{color:#9ca3af;font-size:.82rem;text-align:center;margin-bottom:1.75rem}
+.auth-sub{color:#9ca3af;font-size:.82rem;text-align:center;margin-bottom:1.75rem;line-height:1.5}
 .tab-row{display:flex;background:#f3f4f6;border-radius:10px;padding:4px;margin-bottom:1.5rem}
 .tab-btn{flex:1;padding:.5rem;border-radius:7px;border:none;font-weight:600;font-size:.85rem;cursor:pointer;transition:all .2s;background:transparent;color:#9ca3af}
 .tab-btn.active{background:white;color:#0a2342;box-shadow:0 1px 4px rgba(0,0,0,0.12)}
@@ -25,8 +24,6 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
 .auth-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
 .auth-error{background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;padding:.7rem 1rem;border-radius:8px;font-size:.82rem;margin-bottom:.75rem}
 .auth-note{text-align:center;font-size:.75rem;color:#9ca3af;margin-top:1.25rem;line-height:1.6}
-
-/* ── APP ── */
 #app-screen{display:none}
 .app-header{background:#0a2342;color:white;position:sticky;top:0;z-index:100;box-shadow:0 2px 20px rgba(0,0,0,.3)}
 .app-header-inner{max-width:1100px;margin:0 auto;padding:0 1.25rem;height:60px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
@@ -39,7 +36,6 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
 .user-name{font-size:.82rem;opacity:.65;white-space:nowrap}
 .signout-btn{background:transparent;border:1px solid rgba(255,255,255,.3);color:white;padding:.3rem .8rem;border-radius:6px;font-size:.78rem;cursor:pointer;white-space:nowrap}
 .signout-btn:hover{background:rgba(255,255,255,.1)}
-
 .stats-section{background:#0a2342;color:white;padding:1.25rem 1.25rem 0}
 .stats-inner{max-width:1100px;margin:0 auto}
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem}
@@ -48,7 +44,6 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
 .prog-label{display:flex;justify-content:space-between;font-size:.65rem;opacity:.45;color:white;margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.06em}
 .prog-track{height:7px;background:rgba(255,255,255,.15);border-radius:999px;overflow:hidden;margin-bottom:1.25rem}
 .prog-fill{height:100%;background:linear-gradient(90deg,#14a085,#f0c060);border-radius:999px;transition:width .5s ease}
-
 .content{max-width:1100px;margin:0 auto;padding:1.5rem 1.25rem}
 .stage-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:1.25rem}
 .stage-tab{padding:.4rem 1rem;border-radius:999px;border:2px solid transparent;font-size:.8rem;font-weight:600;cursor:pointer;transition:all .2s;background:white;color:#6b7280}
@@ -57,7 +52,6 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
 .stage-tab.active-Foundations{background:#059669;color:white}
 .stage-tab.active-Core{background:#7c3aed;color:white}
 .stage-tab.active-TTP{background:#dc2626;color:white}
-
 .epa-list{display:flex;flex-direction:column;gap:.65rem}
 .epa-card{background:white;border-radius:12px;box-shadow:0 2px 10px rgba(10,35,66,.07);border-left:5px solid #ccc;overflow:hidden;transition:box-shadow .2s}
 .epa-card:hover{box-shadow:0 4px 20px rgba(10,35,66,.12)}
@@ -66,13 +60,9 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
 .epa-card[data-stage="Core"]{border-left-color:#7c3aed}
 .epa-card[data-stage="TTP"]{border-left-color:#dc2626}
 .epa-card.epa-done{border-left-color:#c9962a!important}
-
 .epa-header{display:flex;align-items:center;padding:1rem 1.25rem;cursor:pointer;gap:.75rem;user-select:none}
 .epa-badge{font-size:.65rem;font-weight:700;padding:.2rem .55rem;border-radius:6px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;flex-shrink:0;color:white}
-.badge-TTD{background:#2563eb}
-.badge-Foundations{background:#059669}
-.badge-Core{background:#7c3aed}
-.badge-TTP{background:#dc2626}
+.badge-TTD{background:#2563eb}.badge-Foundations{background:#059669}.badge-Core{background:#7c3aed}.badge-TTP{background:#dc2626}
 .epa-title-wrap{flex:1;min-width:0}
 .epa-title{font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .epa-subtitle{font-size:.7rem;color:#9ca3af;margin-top:.1rem}
@@ -104,9 +94,6 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
 .req-target{font-size:.75rem;color:#9ca3af;white-space:nowrap}
 .req-tick{font-size:.95rem}
 .complete-badge{display:inline-flex;align-items:center;gap:.4rem;background:linear-gradient(135deg,#f59e0b,#d97706);color:white;padding:.35rem .85rem;border-radius:999px;font-size:.72rem;font-weight:700;margin-top:.9rem;letter-spacing:.04em}
-
-.loading-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:linear-gradient(135deg,#0a2342,#0d5c63);color:white;font-size:1rem;gap:.75rem}
-
 @media(max-width:600px){
   .stats-grid{grid-template-columns:repeat(2,1fr)}
   .epa-title{font-size:.82rem}
@@ -117,39 +104,37 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
 </head>
 <body>
 
-<div class="loading-screen" id="loading-screen">
+<div id="loading-screen">
   <span style="font-size:1.5rem">🩺</span> Loading EPA Tracker…
 </div>
 
-<!-- AUTH -->
-<div id="auth-screen" style="display:none">
+<div id="auth-screen">
   <div class="auth-card">
     <div class="auth-logo">🩺</div>
     <h1 class="auth-title">EPA Tracker</h1>
-    <p class="auth-sub">Pediatrics Residency · Sidra Medicine</p>
+    <p class="auth-sub">Pediatrics Residency · Sidra Medicine<br>No email needed — just a username & password</p>
     <div class="tab-row">
       <button class="tab-btn active" id="tab-login" onclick="showTab('login')">Sign In</button>
       <button class="tab-btn" id="tab-register" onclick="showTab('register')">Register</button>
     </div>
     <div id="auth-error" class="auth-error" style="display:none"></div>
     <div id="form-login">
-      <input class="auth-input" id="login-email" type="email" placeholder="Email address" autocomplete="email"/>
+      <input class="auth-input" id="login-user" type="text" placeholder="Username" autocomplete="username" autocapitalize="none"/>
       <input class="auth-input" id="login-pass" type="password" placeholder="Password" autocomplete="current-password"/>
       <button class="auth-btn" id="login-btn" onclick="doLogin()">Sign In →</button>
     </div>
     <div id="form-register" style="display:none">
       <input class="auth-input" id="reg-name" type="text" placeholder="Full name (e.g. Dr. Sarah Ali)"/>
-      <input class="auth-input" id="reg-email" type="email" placeholder="Email address" autocomplete="email"/>
+      <input class="auth-input" id="reg-user" type="text" placeholder="Choose a username (e.g. drsarah)" autocomplete="username" autocapitalize="none"/>
       <input class="auth-input" id="reg-pass" type="password" placeholder="Choose a password (min 6 chars)" autocomplete="new-password"/>
       <input class="auth-input" id="reg-pass2" type="password" placeholder="Confirm password" autocomplete="new-password"/>
       <button class="auth-btn" id="reg-btn" onclick="doRegister()">Create Account →</button>
     </div>
-    <p class="auth-note">☁️ Your progress syncs across all your devices.<br/>Use any phone, tablet or laptop — always up to date.</p>
+    <p class="auth-note">☁️ Progress syncs across all your devices.<br/>No email required — your data is private & secure.</p>
   </div>
 </div>
 
-<!-- APP -->
-<div id="app-screen" style="display:none">
+<div id="app-screen">
   <div class="app-header">
     <div class="app-header-inner">
       <div class="app-logo">
@@ -166,7 +151,6 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
       </div>
     </div>
   </div>
-
   <div class="stats-section">
     <div class="stats-inner">
       <div class="stats-grid">
@@ -179,7 +163,6 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
       <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
     </div>
   </div>
-
   <div class="content">
     <div class="stage-tabs">
       <button class="stage-tab active-all" onclick="filterStage('all',this)">All EPAs</button>
@@ -192,28 +175,22 @@ body{font-family:'DM Sans',system-ui,sans-serif;background:#f0ede6;color:#1a1a2e
   </div>
 </div>
 
-<!-- Firebase SDKs -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// ── FIREBASE CONFIG ──
 const firebaseConfig = {
   apiKey: "AIzaSyAoWVsr7j98hahB_FFN7czD-0f_fCanZEw",
   authDomain: "epa-tracker.firebaseapp.com",
   projectId: "epa-tracker",
   storageBucket: "epa-tracker.firebasestorage.app",
   messagingSenderId: "87833807721",
-  appId: "1:87833807721:web:7f6c54fe9d4730f17e8bf8",
-  measurementId: "G-L75G5PLECL"
+  appId: "1:87833807721:web:7f6c54fe9d4730f17e8bf8"
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ── EPA DATA ──
 const EPAS=[
 {id:"TTD-1",stage:"TTD",num:1,title:"Performing and presenting a basic history and physical examination",desc:"Focuses on clinical assessment, verifying skills from medical school. Does not include diagnosis, management, or communication of plan.",reqs:[{k:"obs",l:"Total Observations",d:"Collect 4 total (≥2 by supervisor, ≥2 complete encounters)",t:4},{k:"neo",l:"Neonate or Infant",d:"At least 1",t:1},{k:"pre",l:"Preschool or School Age",d:"At least 1",t:1},{k:"adol",l:"Adolescent",d:"At least 1",t:1}]},
 {id:"TTD-2",stage:"TTD",num:2,title:"Documenting orders for pediatric patients",desc:"Written documentation of orders after discussing with supervisor or senior resident.",reqs:[{k:"obs",l:"Total Observations",d:"Collect 6 total (≥3 by supervisor)",t:6},{k:"neo",l:"Neonate/Infant order",d:"At least 1",t:1},{k:"child",l:"Child/Adolescent order",d:"At least 1",t:1},{k:"med",l:"Medication/Prescription order",d:"At least 1",t:1},{k:"iv",l:"IV Fluids order",d:"At least 1",t:1},{k:"diet",l:"Diet/Nutrition order",d:"At least 1",t:1}]},
@@ -252,25 +229,31 @@ const EPAS=[
 const STAGE_COLOR={TTD:"#2563eb",Foundations:"#059669",Core:"#7c3aed",TTP:"#dc2626"};
 let progress={}, activeStage="all", currentUser=null, saveTimer=null;
 
-// ── AUTH STATE ──
-onAuthStateChanged(auth, async (user) => {
-  document.getElementById("loading-screen").style.display="none";
-  if(user){
-    currentUser=user;
-    document.getElementById("user-display").textContent=user.displayName||user.email;
-    document.getElementById("auth-screen").style.display="none";
-    document.getElementById("app-screen").style.display="block";
-    await loadProgress(user.uid);
-    renderEPAs();
-    updateStats();
-  } else {
-    currentUser=null;
-    document.getElementById("auth-screen").style.display="flex";
-    document.getElementById("app-screen").style.display="none";
-  }
-});
+// ── SIMPLE HASH (no email, no Firebase Auth) ──
+function hashPw(pw){
+  let h=5381;
+  for(let i=0;i<pw.length;i++) h=((h<<5)+h)+pw.charCodeAt(i);
+  return (h>>>0).toString(36)+"_"+pw.length;
+}
 
-// ── AUTH FUNCTIONS (exposed globally) ──
+// ── CHECK SESSION ──
+async function init(){
+  const saved=localStorage.getItem("epa_session_user");
+  if(saved){
+    try{
+      const snap=await getDoc(doc(db,"users",saved.toLowerCase()));
+      if(snap.exists()){
+        await loginUser(snap.data());
+        return;
+      }
+    } catch(e){}
+  }
+  document.getElementById("loading-screen").style.display="none";
+  document.getElementById("auth-screen").style.display="flex";
+}
+init();
+
+// ── AUTH ──
 window.showTab = function(tab){
   document.getElementById("tab-login").classList.toggle("active",tab==="login");
   document.getElementById("tab-register").classList.toggle("active",tab==="register");
@@ -279,64 +262,83 @@ window.showTab = function(tab){
   clearError();
 };
 
-window.doLogin = async function(){
-  clearError();
-  const email=document.getElementById("login-email").value.trim();
-  const pass=document.getElementById("login-pass").value;
-  if(!email||!pass) return showError("Please enter your email and password.");
-  document.getElementById("login-btn").disabled=true;
-  document.getElementById("login-btn").textContent="Signing in…";
-  try{
-    await signInWithEmailAndPassword(auth,email,pass);
-  } catch(e){
-    showError(e.code==="auth/invalid-credential"?"Incorrect email or password. Please try again.":"Sign in failed. Please check your details.");
-    document.getElementById("login-btn").disabled=false;
-    document.getElementById("login-btn").textContent="Sign In →";
-  }
-};
-
 window.doRegister = async function(){
   clearError();
   const name=document.getElementById("reg-name").value.trim();
-  const email=document.getElementById("reg-email").value.trim();
+  const username=document.getElementById("reg-user").value.trim().toLowerCase();
   const pass=document.getElementById("reg-pass").value;
   const pass2=document.getElementById("reg-pass2").value;
-  if(!name||!email||!pass||!pass2) return showError("Please fill in all fields.");
+  if(!name||!username||!pass||!pass2) return showError("Please fill in all fields.");
+  if(!/^[a-z0-9_]+$/.test(username)) return showError("Username can only contain letters, numbers, and underscores.");
   if(pass!==pass2) return showError("Passwords do not match.");
   if(pass.length<6) return showError("Password must be at least 6 characters.");
-  document.getElementById("reg-btn").disabled=true;
-  document.getElementById("reg-btn").textContent="Creating account…";
+  setBtnLoading("reg-btn","Creating account…");
   try{
-    const cred=await createUserWithEmailAndPassword(auth,email,pass);
-    await updateProfile(cred.user,{displayName:name});
+    const existing=await getDoc(doc(db,"users",username));
+    if(existing.exists()){ resetBtn("reg-btn","Create Account →"); return showError("Username already taken. Please choose another."); }
+    const userData={username, displayName:name, pwHash:hashPw(pass), createdAt:new Date().toISOString()};
+    await setDoc(doc(db,"users",username),userData);
+    await loginUser(userData);
   } catch(e){
-    showError(e.code==="auth/email-already-in-use"?"This email is already registered. Please sign in instead.":"Registration failed: "+e.message);
-    document.getElementById("reg-btn").disabled=false;
-    document.getElementById("reg-btn").textContent="Create Account →";
+    resetBtn("reg-btn","Create Account →");
+    showError("Registration failed. Please check your connection and try again.");
   }
 };
 
-window.doSignOut = async function(){
-  await signOut(auth);
-  progress={};
+window.doLogin = async function(){
+  clearError();
+  const username=document.getElementById("login-user").value.trim().toLowerCase();
+  const pass=document.getElementById("login-pass").value;
+  if(!username||!pass) return showError("Please enter your username and password.");
+  setBtnLoading("login-btn","Signing in…");
+  try{
+    const snap=await getDoc(doc(db,"users",username));
+    if(!snap.exists()){ resetBtn("login-btn","Sign In →"); return showError("Username not found. Please check or register."); }
+    const userData=snap.data();
+    if(userData.pwHash!==hashPw(pass)){ resetBtn("login-btn","Sign In →"); return showError("Incorrect password. Please try again."); }
+    await loginUser(userData);
+  } catch(e){
+    resetBtn("login-btn","Sign In →");
+    showError("Sign in failed. Please check your connection and try again.");
+  }
+};
+
+async function loginUser(userData){
+  currentUser=userData;
+  localStorage.setItem("epa_session_user",userData.username);
+  try{
+    const snap=await getDoc(doc(db,"progress",userData.username));
+    progress=snap.exists()?(snap.data().data||{}):{};
+  } catch(e){ progress={}; }
+  document.getElementById("loading-screen").style.display="none";
+  document.getElementById("auth-screen").style.display="none";
+  document.getElementById("app-screen").style.display="block";
+  document.getElementById("user-display").textContent=userData.displayName||userData.username;
+  renderEPAs();
+  updateStats();
+}
+
+window.doSignOut = function(){
+  localStorage.removeItem("epa_session_user");
+  currentUser=null; progress={};
+  document.getElementById("app-screen").style.display="none";
+  document.getElementById("auth-screen").style.display="flex";
+  document.getElementById("login-user").value="";
+  document.getElementById("login-pass").value="";
+  clearError();
+  window.showTab("login");
 };
 
 function showError(msg){ const e=document.getElementById("auth-error"); e.textContent=msg; e.style.display="block"; }
 function clearError(){ document.getElementById("auth-error").style.display="none"; }
+function setBtnLoading(id,txt){ const b=document.getElementById(id); b.disabled=true; b.textContent=txt; }
+function resetBtn(id,txt){ const b=document.getElementById(id); b.disabled=false; b.textContent=txt; }
 
-// ── FIRESTORE ──
-async function loadProgress(uid){
-  try{
-    const snap=await getDoc(doc(db,"progress",uid));
-    if(snap.exists()) progress=snap.data().data||{};
-    else progress={};
-  } catch(e){ progress={}; }
-}
-
+// ── SAVE ──
 async function saveToCloud(){
   if(!currentUser) return;
   try{
-    await setDoc(doc(db,"progress",currentUser.uid),{data:progress,updatedAt:new Date().toISOString()});
+    await setDoc(doc(db,"progress",currentUser.username),{data:progress,updatedAt:new Date().toISOString()});
     const el=document.getElementById("save-msg");
     el.textContent="☁️ Saved";
     setTimeout(()=>{ el.textContent=""; },2000);
@@ -346,7 +348,7 @@ async function saveToCloud(){
 // ── PROGRESS ──
 function getCount(epaId,k){ return(progress[epaId]&&progress[epaId][k])||0; }
 
-window.changeCount = function(epaId,k,delta,target){
+window.changeCount=function(epaId,k,delta,target){
   const cur=getCount(epaId,k);
   const val=Math.min(target,Math.max(0,cur+delta));
   if(!progress[epaId]) progress[epaId]={};
@@ -354,7 +356,7 @@ window.changeCount = function(epaId,k,delta,target){
   updateCard(epaId);
   updateStats();
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(saveToCloud, 800);
+  saveTimer=setTimeout(saveToCloud,800);
 };
 
 function isEPADone(epa){ return epa.reqs.every(r=>getCount(epa.id,r.k)>=r.t); }
@@ -363,8 +365,7 @@ function metReqs(epa){ return epa.reqs.filter(r=>getCount(epa.id,r.k)>=r.t).leng
 function updateStats(){
   const done=EPAS.filter(isEPADone).length;
   const pct=Math.round((done/EPAS.length)*100);
-  let obs=0;
-  EPAS.forEach(e=>e.reqs.forEach(r=>{ obs+=getCount(e.id,r.k); }));
+  let obs=0; EPAS.forEach(e=>e.reqs.forEach(r=>{ obs+=getCount(e.id,r.k); }));
   document.getElementById("s-obs").textContent=obs;
   document.getElementById("s-done").textContent=done;
   document.getElementById("s-rem").textContent=EPAS.length-done;
@@ -373,7 +374,7 @@ function updateStats(){
   document.getElementById("prog-pct").textContent=pct+"%";
 }
 
-window.filterStage = function(stage,btn){
+window.filterStage=function(stage,btn){
   activeStage=stage;
   document.querySelectorAll(".stage-tab").forEach(t=>{ t.className="stage-tab"; });
   btn.className="stage-tab active-"+stage;
@@ -397,10 +398,7 @@ function renderEPAs(){
       const cnt=getCount(epa.id,r.k);
       const done=cnt>=r.t;
       return `<div class="req-row${done?" req-complete":""}">
-        <div class="req-info">
-          <div class="req-name${done?" req-name-done":""}">${r.l}</div>
-          <div class="req-detail">${r.d}</div>
-        </div>
+        <div class="req-info"><div class="req-name${done?" req-name-done":""}">${r.l}</div><div class="req-detail">${r.d}</div></div>
         <div class="counter">
           <button class="cbtn cbtn-minus" onclick="event.stopPropagation();changeCount('${epa.id}','${r.k}',-1,${r.t})"${cnt<=0?" disabled":""}>−</button>
           <span class="cval" id="cv-${epa.id}-${r.k}">${cnt}</span>
@@ -413,10 +411,7 @@ function renderEPAs(){
     card.innerHTML=`
       <div class="epa-header" onclick="toggleCard('${epa.id}')">
         <span class="epa-badge badge-${epa.stage}">${shortStage} #${epa.num}</span>
-        <div class="epa-title-wrap">
-          <div class="epa-title">${epa.title}</div>
-          <div class="epa-subtitle">${met}/${epa.reqs.length} requirements met</div>
-        </div>
+        <div class="epa-title-wrap"><div class="epa-title">${epa.title}</div><div class="epa-subtitle">${met}/${epa.reqs.length} requirements met</div></div>
         <div class="epa-right">
           <div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${isEPADone(epa)?"#c9962a":color}"></div></div>
           <span class="mini-pct">${pct}%</span>
@@ -434,7 +429,7 @@ function renderEPAs(){
   });
 }
 
-window.toggleCard = function(id){
+window.toggleCard=function(id){
   const card=document.querySelector(`.epa-card[data-id="${id}"]`);
   if(card) card.classList.toggle("open");
 };
@@ -450,10 +445,7 @@ function updateCard(epaId){
     if(valEl){
       valEl.textContent=cnt;
       const row=valEl.closest(".counter");
-      if(row){
-        row.querySelector(".cbtn-minus").disabled=cnt<=0;
-        row.querySelector(".cbtn-plus").disabled=cnt>=r.t;
-      }
+      if(row){ row.querySelector(".cbtn-minus").disabled=cnt<=0; row.querySelector(".cbtn-plus").disabled=cnt>=r.t; }
       const reqRow=valEl.closest(".req-row");
       if(reqRow){
         reqRow.classList.toggle("req-complete",done);
@@ -472,17 +464,9 @@ function updateCard(epaId){
   card.querySelector(".mini-pct").textContent=pct+"%";
 }
 
-// Enter key support
-document.addEventListener("DOMContentLoaded",()=>{
-  ["login-email","login-pass"].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.addEventListener("keydown",e=>{ if(e.key==="Enter") window.doLogin(); });
-  });
-  ["reg-name","reg-email","reg-pass","reg-pass2"].forEach(id=>{
-    const el=document.getElementById(id);
-    if(el) el.addEventListener("keydown",e=>{ if(e.key==="Enter") window.doRegister(); });
-  });
-});
+// Enter key
+["login-user","login-pass"].forEach(id=>{ document.getElementById(id)?.addEventListener("keydown",e=>{ if(e.key==="Enter") window.doLogin(); }); });
+["reg-name","reg-user","reg-pass","reg-pass2"].forEach(id=>{ document.getElementById(id)?.addEventListener("keydown",e=>{ if(e.key==="Enter") window.doRegister(); }); });
 </script>
 </body>
 </html>
