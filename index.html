@@ -519,6 +519,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+// ─────────────────────────────────────────────
+//  EPA DATA
+// ─────────────────────────────────────────────
 const EPAS=[
 {id:"TTD-1",stage:"TTD",num:1,title:"Performing and presenting a basic history and physical examination",desc:"Focuses on clinical assessment, verifying skills from medical school. Does not include diagnosis, management, or communication of plan.",reqs:[{k:"obs",l:"Total Observations",d:"Collect 4 total (≥2 by supervisor, ≥2 complete encounters)",t:4},{k:"neo",l:"Neonate or Infant",d:"At least 1",t:1},{k:"pre",l:"Preschool or School Age",d:"At least 1",t:1},{k:"adol",l:"Adolescent",d:"At least 1",t:1}]},
 {id:"TTD-2",stage:"TTD",num:2,title:"Documenting orders for pediatric patients",desc:"Written documentation of orders after discussing with supervisor or senior resident.",reqs:[{k:"obs",l:"Total Observations",d:"Collect 6 total (≥3 by supervisor)",t:6},{k:"neo",l:"Neonate/Infant order",d:"At least 1",t:1},{k:"child",l:"Child/Adolescent order",d:"At least 1",t:1},{k:"med",l:"Medication/Prescription order",d:"At least 1",t:1},{k:"iv",l:"IV Fluids order",d:"At least 1",t:1},{k:"diet",l:"Diet/Nutrition order",d:"At least 1",t:1}]},
@@ -556,20 +559,29 @@ const EPAS=[
 
 const STAGE_COLOR={TTD:"#2563eb",Foundations:"#059669",Core:"#7c3aed",TTP:"#dc2626"};
 const STAGE_NAMES={TTD:"Transition to Discipline",Foundations:"Foundations",Core:"Core",TTP:"Transition to Practice"};
+// Moderator code stored as a hash — the actual code is never visible in source
+// Default code: EPA@Sidra2025!  (share only with PD / Associate PD)
+// To change: run hashPw("yournewcode") in browser console and replace the hash below
 const MOD_CODE_HASH = "a8l4d4_14";
 
 let progress={}, logs={}, activeStage="all", currentUser=null, saveTimer=null;
 let activeModal={epaId:null,reqKey:null,reqLabel:null};
 let modalType="real", modalObserver=null;
 let allResidents=[];
-let currentPGY=null;
+let currentPGY=null; // user-set PGY year (1-4)
 
+// ─────────────────────────────────────────────
+//  HASH
+// ─────────────────────────────────────────────
 function hashPw(pw){
   let h=5381;
   for(let i=0;i<pw.length;i++) h=((h<<5)+h)+pw.charCodeAt(i);
   return (h>>>0).toString(36)+"_"+pw.length;
 }
 
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
 async function init(){
   const saved=localStorage.getItem("epa_session_user");
   if(saved){
@@ -583,6 +595,9 @@ async function init(){
 }
 init();
 
+// ─────────────────────────────────────────────
+//  AUTH
+// ─────────────────────────────────────────────
 window.showTab=function(tab){
   document.getElementById("tab-login").classList.toggle("active",tab==="login");
   document.getElementById("tab-register").classList.toggle("active",tab==="register");
@@ -635,11 +650,13 @@ window.doLogin=async function(){
 async function loginUser(userData){
   currentUser=userData;
   localStorage.setItem("epa_session_user",userData.username);
+  // load progress
   try{
     const snap=await getDoc(doc(db,"progress",userData.username));
     progress=snap.exists()?(snap.data().data||{}):{};
     logs=snap.exists()?(snap.data().logs||{}):{};
   }catch(e){progress={};logs={};}
+  // Load profile extras
   currentPGY=userData.pgy||null;
   document.getElementById("loading-screen").style.display="none";
   document.getElementById("auth-screen").style.display="none";
@@ -647,6 +664,7 @@ async function loginUser(userData){
   document.getElementById("user-display").textContent=userData.displayName||userData.username;
   if(userData.isModerator){
     document.getElementById("view-tabs").style.display="flex";
+    // Add moderator badge to header
     const badge=document.createElement("span");
     badge.style.cssText="font-size:.65rem;background:rgba(124,58,237,.35);border:1px solid #a78bfa;color:#ddd6fe;padding:.2rem .5rem;border-radius:999px;font-weight:700;white-space:nowrap";
     badge.textContent="PD / Moderator";
@@ -662,6 +680,9 @@ window.doSignOut=function(){
   location.reload();
 };
 
+// ─────────────────────────────────────────────
+//  PROGRESS HELPERS
+// ─────────────────────────────────────────────
 function getCount(epaId,key){return(progress[epaId]&&progress[epaId][key])||0;}
 function getLogs(epaId,key){return(logs[epaId]&&logs[epaId][key])||[];}
 function isEPADone(epa){return epa.reqs.every(r=>getCount(epa.id,r.k)>=r.t);}
@@ -693,9 +714,13 @@ function updateStats(){
   renderPGYTimeline();
 }
 
+// ─────────────────────────────────────────────
+//  PROFILE PANEL
+// ─────────────────────────────────────────────
 let selectedPGY=null;
 
 window.openProfile=function(){
+  // Pre-fill fields from currentUser
   document.getElementById("prof-name").value=currentUser.displayName||"";
   document.getElementById("prof-rotation").value=currentUser.rotation||"";
   document.getElementById("prof-site").value=currentUser.site||"";
@@ -714,7 +739,7 @@ window.closeProfile=function(){
 };
 
 window.selectPGY=function(n){
-  selectedPGY=selectedPGY===n?null:n;
+  selectedPGY=selectedPGY===n?null:n; // toggle off if clicking same
   [1,2,3,4].forEach(x=>{
     document.getElementById("pgy-opt-"+x).classList.toggle("sel",x===selectedPGY);
   });
@@ -745,42 +770,110 @@ window.saveProfile=async function(){
   btn.disabled=false; btn.textContent="Save Profile";
 };
 
+// ─────────────────────────────────────────────
+//  PGY TIMELINE
+// ─────────────────────────────────────────────
+// Milestone mapping:
+//   PGY-1 months 1–3  → TTD          (2 EPAs)
+//   PGY-1 months 4–12 + PGY-2 months 1–3 → Foundations (11 EPAs)
+//   PGY-2 months 4–12 + PGY-3 months 1–3 → Core        (14 EPAs)
+//   PGY-3 months 4–12 + PGY-4           → TTP          (5 EPAs)
 const PGY_MILESTONES=[
-  {pgy:"PGY-1",years:"Year 1",segments:[{stage:"TTD",label:"Transition to Discipline",months:"Months 1–3",color:"#2563eb"},{stage:"Foundations",label:"Foundations (begins)",months:"Months 4–12",color:"#059669"}]},
-  {pgy:"PGY-2",years:"Year 2",segments:[{stage:"Foundations",label:"Foundations (completes)",months:"Months 1–3",color:"#059669"},{stage:"Core",label:"Core (begins)",months:"Months 4–12",color:"#7c3aed"}]},
-  {pgy:"PGY-3",years:"Year 3",segments:[{stage:"Core",label:"Core (completes)",months:"Months 1–3",color:"#7c3aed"},{stage:"TTP",label:"Transition to Practice (begins)",months:"Months 4–12",color:"#dc2626"}]},
-  {pgy:"PGY-4",years:"Year 4",segments:[{stage:"TTP",label:"Transition to Practice",months:"Full year",color:"#dc2626"}]}
+  {
+    pgy:"PGY-1",
+    years:"Year 1",
+    segments:[
+      {stage:"TTD",  label:"Transition to Discipline", months:"Months 1–3",   color:"#2563eb"},
+      {stage:"Foundations", label:"Foundations (begins)", months:"Months 4–12", color:"#059669"}
+    ]
+  },
+  {
+    pgy:"PGY-2",
+    years:"Year 2",
+    segments:[
+      {stage:"Foundations", label:"Foundations (completes)", months:"Months 1–3", color:"#059669"},
+      {stage:"Core", label:"Core (begins)", months:"Months 4–12", color:"#7c3aed"}
+    ]
+  },
+  {
+    pgy:"PGY-3",
+    years:"Year 3",
+    segments:[
+      {stage:"Core", label:"Core (completes)", months:"Months 1–3", color:"#7c3aed"},
+      {stage:"TTP",  label:"Transition to Practice (begins)", months:"Months 4–12", color:"#dc2626"}
+    ]
+  },
+  {
+    pgy:"PGY-4",
+    years:"Year 4",
+    segments:[
+      {stage:"TTP",  label:"Transition to Practice", months:"Full year", color:"#dc2626"}
+    ]
+  }
 ];
 
 function renderPGYTimeline(){
   const row=document.getElementById("pgy-row");
   if(!row) return;
+
   const stageStats={};
   ["TTD","Foundations","Core","TTP"].forEach(s=>{
     const epas=EPAS.filter(e=>e.stage===s);
     const done=epas.filter(isEPADone).length;
     stageStats[s]={done,total:epas.length,pct:Math.round(done/epas.length*100)};
   });
-  function pgyComplete(m){return [...new Set(m.segments.map(s=>s.stage))].every(s=>stageStats[s].pct===100);}
-  let foundActive=false;
-  const statuses=PGY_MILESTONES.map(m=>{
-    if(pgyComplete(m)) return "done";
-    if(!foundActive){foundActive=true;return "active";}
-    return "upcoming";
-  });
+
+  // If user set their PGY: that block = Active, earlier = Done, later = Upcoming
+  // If not set: auto-detect from progress (first incomplete = Active)
+  let statuses;
+  if(currentPGY){
+    statuses=PGY_MILESTONES.map((_,i)=>{
+      if(i+1 < currentPGY) return "done";
+      if(i+1 === currentPGY) return "active";
+      return "upcoming";
+    });
+  } else {
+    function pgyComplete(m){return[...new Set(m.segments.map(s=>s.stage))].every(s=>stageStats[s].pct===100);}
+    let foundActive=false;
+    statuses=PGY_MILESTONES.map(m=>{
+      if(pgyComplete(m)) return "done";
+      if(!foundActive){foundActive=true;return "active";}
+      return "upcoming";
+    });
+  }
+
   row.innerHTML=PGY_MILESTONES.map((m,i)=>{
     const status=statuses[i];
-    const isUserPGY=currentPGY===(i+1);
-    const statusHtml=status==="done"?`<span class="pgy-status pgy-status-done">✓ Done</span>`:status==="active"?`<span class="pgy-status pgy-status-active">● Active</span>`:`<span class="pgy-status pgy-status-upcoming">Upcoming</span>`;
-    const youBadge=isUserPGY?`<span class="pgy-you-badge">You</span>`:"";
+    const statusHtml=status==="done"
+      ?`<span class="pgy-status pgy-status-done">✓ Done</span>`
+      :status==="active"
+      ?`<span class="pgy-status pgy-status-active">● You are here</span>`
+      :`<span class="pgy-status pgy-status-upcoming">Upcoming</span>`;
+
     const segsHtml=m.segments.map(seg=>{
       const st=stageStats[seg.stage];
-      return `<div class="pgy-seg-row"><div class="pgy-seg-label">${seg.label}</div><div class="pgy-seg-bottom"><div class="pgy-bar-track"><div class="pgy-bar-fill" style="width:${st.pct}%;background:${seg.color}"></div></div><span class="pgy-seg-count" style="color:${seg.color}">${st.done}/${st.total}</span></div></div>`;
+      return `<div class="pgy-seg-row">
+        <div class="pgy-seg-label">${seg.label}</div>
+        <div class="pgy-seg-bottom">
+          <div class="pgy-bar-track"><div class="pgy-bar-fill" style="width:${st.pct}%;background:${seg.color}"></div></div>
+          <span class="pgy-seg-count" style="color:${seg.color}">${st.done}/${st.total}</span>
+        </div>
+      </div>`;
     }).join("");
-    return `<div class="pgy-block ${status==="active"?"pgy-active":status==="done"?"pgy-done":""} ${isUserPGY?"pgy-current-user":""}"><div class="pgy-top"><div style="display:flex;align-items:center;gap:.4rem"><span class="pgy-label">${m.pgy}</span>${youBadge}</div>${statusHtml}</div><div class="pgy-segs">${segsHtml}</div></div>`;
+
+    return `<div class="pgy-block ${status==="active"?"pgy-active":status==="done"?"pgy-done":""}">
+      <div class="pgy-top">
+        <span class="pgy-label">${m.pgy}</span>
+        ${statusHtml}
+      </div>
+      <div class="pgy-segs">${segsHtml}</div>
+    </div>`;
   }).join("");
 }
 
+// ─────────────────────────────────────────────
+//  RENDER EPAs
+// ─────────────────────────────────────────────
 function renderEPAs(){
   const list=document.getElementById("epa-list");
   list.innerHTML="";
@@ -795,28 +888,88 @@ function renderEPAs(){
     const pct=Math.round((met/epa.reqs.length)*100);
     const color=STAGE_COLOR[epa.stage];
     if(isEPADone(epa)) card.classList.add("epa-done");
+
     const reqsHtml=epa.reqs.map(r=>{
       const cnt=getCount(epa.id,r.k);
       const done=cnt>=r.t;
       const isObs=r.k==='obs';
       const entryLogs=isObs?[]:getLogs(epa.id,r.k);
-      const entriesHtml=entryLogs.length?`<div class="log-entries">${entryLogs.map((lg,i)=>`<div class="log-entry"><span class="log-chip ${lg.type==="sim"?"chip-sim":"chip-real"}">${lg.type==="sim"?"🎭 Sim":"🏥 Real"}</span><span class="log-chip ${lg.observer==="SR"?"chip-sr":lg.observer==="Consultant"?"chip-cons":"chip-sup"}">${lg.observer==="SR"?"Sr. Resident":lg.observer}</span>${lg.date?`<span style="color:#6b7280">${lg.date}</span>`:""}${lg.rotation?`<span style="color:#9ca3af;font-style:italic">${lg.rotation}</span>`:""}${lg.notes?`<span style="color:#374151;font-style:italic;font-size:.7rem">📝 ${lg.notes}</span>`:""}<button class="log-entry-delete" onclick="event.stopPropagation();deleteLog('${epa.id}','${r.k}',${i})" title="Remove">✕</button></div>`).join("")}</div>`:"";
+      const entriesHtml=entryLogs.length?`<div class="log-entries">${entryLogs.map((lg,i)=>`
+        <div class="log-entry">
+          <span class="log-chip ${lg.type==="sim"?"chip-sim":"chip-real"}">${lg.type==="sim"?"🎭 Sim":"🏥 Real"}</span>
+          <span class="log-chip ${lg.observer==="SR"?"chip-sr":lg.observer==="Consultant"?"chip-cons":"chip-sup"}">${lg.observer==="SR"?"Sr. Resident":lg.observer}</span>
+          ${lg.date?`<span style="color:#6b7280">${lg.date}</span>`:""}
+          ${lg.rotation?`<span style="color:#9ca3af;font-style:italic">${lg.rotation}</span>`:""}
+          ${lg.notes?`<span style="color:#374151;font-style:italic;font-size:.7rem">📝 ${lg.notes}</span>`:""}
+          <button class="log-entry-delete" onclick="event.stopPropagation();deleteLog('${epa.id}','${r.k}',${i})" title="Remove">✕</button>
+        </div>`).join("")}</div>`:"";
+      // obs row: auto-tallied, read-only
       if(isObs){
-        return `<div class="req-row req-row-obs${done?" req-complete":""}"><div class="req-info"><div class="req-name${done?" req-name-done":""}">${r.l} <span class="auto-badge">auto</span></div><div class="req-detail">${r.d}</div></div><div class="counter"><span class="cval obs-auto" id="cv-${epa.id}-${r.k}">${cnt}</span><span class="req-target" style="min-width:auto">/ ${r.t} req.</span><span class="req-tick">${done?"✅":""}</span></div></div>`;
+        return `<div class="req-row req-row-obs${done?" req-complete":""}">
+          <div class="req-info">
+            <div class="req-name${done?" req-name-done":""}">${r.l} <span class="auto-badge">auto</span></div>
+            <div class="req-detail">${r.d}</div>
+          </div>
+          <div class="counter">
+            <span class="cval obs-auto" id="cv-${epa.id}-${r.k}">${cnt}</span>
+            <span class="req-target" style="min-width:auto">/ ${r.t} req.</span>
+            <span class="req-tick">${done?"✅":""}</span>
+          </div>
+        </div>`;
       }
       const hintHtml=r.hint?`<div class="req-hint">${r.hint}</div>`:"";
-      return `<div class="req-row${done?" req-complete":""}"><div class="req-info"><div class="req-name${done?" req-name-done":""}">${r.l}</div><div class="req-detail">${r.d}</div>${hintHtml}${entriesHtml}</div><div class="counter"><button class="cbtn cbtn-minus" onclick="event.stopPropagation();changeCount('${epa.id}','${r.k}',-1,${r.t})"${cnt<=0?" disabled":""}>−</button><span class="cval" id="cv-${epa.id}-${r.k}">${cnt}</span><button class="cbtn cbtn-plus" onclick="event.stopPropagation();openModal('${epa.id}','${r.k}',\`${r.l.replace(/`/g,"'")}\`,\`${epa.title.replace(/`/g,"'")}\`,${r.t})">+</button><span class="req-target">/ ${r.t}${cnt>r.t?` <span style="color:#059669;font-weight:700">+${cnt-r.t} extra</span>`:" req."}</span><span class="req-tick">${done?"✅":""}</span></div></div>`;
+      return `<div class="req-row${done?" req-complete":""}">
+        <div class="req-info">
+          <div class="req-name${done?" req-name-done":""}">${r.l}</div>
+          <div class="req-detail">${r.d}</div>
+          ${hintHtml}
+          ${entriesHtml}
+        </div>
+        <div class="counter">
+          <button class="cbtn cbtn-minus" onclick="event.stopPropagation();changeCount('${epa.id}','${r.k}',-1,${r.t})"${cnt<=0?" disabled":""}>−</button>
+          <span class="cval" id="cv-${epa.id}-${r.k}">${cnt}</span>
+          <button class="cbtn cbtn-plus" onclick="event.stopPropagation();openModal('${epa.id}','${r.k}',\`${r.l.replace(/`/g,"'")}\`,\`${epa.title.replace(/`/g,"'")}\`,${r.t})">+</button>
+          <span class="req-target">/ ${r.t}${cnt>r.t?` <span style="color:#059669;font-weight:700">+${cnt-r.t} extra</span>`:" req."}</span>
+          <span class="req-tick">${done?"✅":""}</span>
+        </div>
+      </div>`;
     }).join("");
-    card.innerHTML=`<div class="epa-header" onclick="toggleCard('${epa.id}')"><span class="epa-badge badge-${epa.stage}">${shortStage} #${epa.num}</span><div class="epa-title-wrap"><div class="epa-title">${epa.title}</div><div class="epa-subtitle">${met}/${epa.reqs.length} requirements met</div></div><div class="epa-right"><div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${isEPADone(epa)?"#c9962a":color}"></div></div><span class="mini-pct">${pct}%</span>${isEPADone(epa)?"<span>✅</span>":""}<span class="chevron">▼</span></div></div><div class="epa-body"><p class="epa-desc">${epa.desc}</p><div class="req-section-title">Requirements</div><div class="req-list">${reqsHtml}</div>${isEPADone(epa)?'<div class="complete-badge">🏅 EPA Completed</div>':''}</div>`;
+
+    card.innerHTML=`
+      <div class="epa-header" onclick="toggleCard('${epa.id}')">
+        <span class="epa-badge badge-${epa.stage}">${shortStage} #${epa.num}</span>
+        <div class="epa-title-wrap">
+          <div class="epa-title">${epa.title}</div>
+          <div class="epa-subtitle">${met}/${epa.reqs.length} requirements met</div>
+        </div>
+        <div class="epa-right">
+          <div class="mini-bar"><div class="mini-fill" style="width:${pct}%;background:${isEPADone(epa)?"#c9962a":color}"></div></div>
+          <span class="mini-pct">${pct}%</span>
+          ${isEPADone(epa)?"<span>✅</span>":""}
+          <span class="chevron">▼</span>
+        </div>
+      </div>
+      <div class="epa-body">
+        <p class="epa-desc">${epa.desc}</p>
+        <div class="req-section-title">Requirements</div>
+        <div class="req-list">${reqsHtml}</div>
+        ${isEPADone(epa)?'<div class="complete-badge">🏅 EPA Completed</div>':''}
+      </div>`;
     list.appendChild(card);
   });
 }
 
-window.toggleCard=function(id){const card=document.querySelector(`.epa-card[data-id="${id}"]`);if(card) card.classList.toggle("open");};
+window.toggleCard=function(id){
+  const card=document.querySelector(`.epa-card[data-id="${id}"]`);
+  if(card) card.classList.toggle("open");
+};
 
 window.filterStage=function(stage,btn){
   activeStage=stage;
-  document.querySelectorAll(".stage-tab").forEach(b=>{b.className="stage-tab";if(b===btn) b.classList.add("active-"+stage);});
+  document.querySelectorAll(".stage-tab").forEach(b=>{
+    b.className="stage-tab";
+    if(b===btn) b.classList.add("active-"+stage);
+  });
   renderEPAs();
 };
 
@@ -838,7 +991,9 @@ function updateCard(epaId){
           if(minus) minus.disabled=cnt<=0;
           if(plus) plus.removeAttribute("disabled");
           const targetEl=row.querySelector(".req-target");
-          if(targetEl) targetEl.innerHTML=`/ ${req.t}${cnt>req.t?` <span style="color:#059669;font-weight:700">+${cnt-req.t} extra</span>`:" req."}`;
+          if(targetEl){
+            targetEl.innerHTML=`/ ${req.t}${cnt>req.t?` <span style="color:#059669;font-weight:700">+${cnt-req.t} extra</span>`:" req."}`;
+          }
         }
       }
       const reqRow=valEl.closest(".req-row");
@@ -859,13 +1014,20 @@ function updateCard(epaId){
   card.querySelector(".mini-pct").textContent=pct+"%";
 }
 
+// ─────────────────────────────────────────────
+//  COUNTER (minus uses direct subtract, plus opens modal)
+// ─────────────────────────────────────────────
 window.changeCount=function(epaId,key,delta,target){
   if(!progress[epaId]) progress[epaId]={};
   const cur=progress[epaId][key]||0;
   const nv=Math.max(0,cur+delta);
   if(nv===cur) return;
   progress[epaId][key]=nv;
-  if(delta<0 && logs[epaId] && logs[epaId][key] && logs[epaId][key].length>0) logs[epaId][key].pop();
+  // if decrement, also remove last log entry
+  if(delta<0 && logs[epaId] && logs[epaId][key] && logs[epaId][key].length>0){
+    logs[epaId][key].pop();
+  }
+  // Auto-sync Total Observations (obs) when a sub-category changes
   if(key!=='obs'){
     const epa=EPAS.find(e=>e.id===epaId);
     const obsReq=epa&&epa.reqs.find(r=>r.k==='obs');
@@ -873,7 +1035,10 @@ window.changeCount=function(epaId,key,delta,target){
       const actualDelta=nv-cur;
       const curObs=progress[epaId]['obs']||0;
       progress[epaId]['obs']=Math.max(0,curObs+actualDelta);
-      if(actualDelta<0 && logs[epaId]&&logs[epaId]['obs']&&logs[epaId]['obs'].length>0) logs[epaId]['obs'].pop();
+      // also sync logs for obs if decrementing
+      if(actualDelta<0 && logs[epaId]&&logs[epaId]['obs']&&logs[epaId]['obs'].length>0){
+        logs[epaId]['obs'].pop();
+      }
     }
   }
   updateCard(epaId);
@@ -886,6 +1051,7 @@ window.deleteLog=function(epaId,key,idx){
     logs[epaId][key].splice(idx,1);
     if(!progress[epaId]) progress[epaId]={};
     progress[epaId][key]=Math.max(0,(progress[epaId][key]||1)-1);
+    // Auto-sync obs when a sub-category log is deleted
     if(key!=='obs'){
       const epa=EPAS.find(e=>e.id===epaId);
       const obsReq=epa&&epa.reqs.find(r=>r.k==='obs');
@@ -903,6 +1069,9 @@ window.deleteLog=function(epaId,key,idx){
   }
 };
 
+// ─────────────────────────────────────────────
+//  LOG MODAL
+// ─────────────────────────────────────────────
 window.openModal=function(epaId,reqKey,reqLabel,epaTitle,target){
   activeModal={epaId,reqKey,reqLabel,target};
   modalType="real"; modalObserver=null;
@@ -918,7 +1087,9 @@ window.openModal=function(epaId,reqKey,reqLabel,epaTitle,target){
   document.getElementById("log-modal").classList.add("open");
 };
 
-window.closeModal=function(){document.getElementById("log-modal").classList.remove("open");};
+window.closeModal=function(){
+  document.getElementById("log-modal").classList.remove("open");
+};
 
 window.selectType=function(t){
   modalType=t;
@@ -928,7 +1099,9 @@ window.selectType=function(t){
 
 window.selectObserver=function(o){
   modalObserver=o;
-  ["SR","Consultant","Supervisor"].forEach(x=>{document.getElementById("tog-"+x).className="toggle-btn"+(x===o?" sel-"+x:"");});
+  ["SR","Consultant","Supervisor"].forEach(x=>{
+    document.getElementById("tog-"+x).className="toggle-btn"+(x===o?" sel-"+x:"");
+  });
 };
 
 window.saveLog=function(){
@@ -947,6 +1120,7 @@ window.saveLog=function(){
   logs[epaId][reqKey].push(entry);
   if(!progress[epaId]) progress[epaId]={};
   progress[epaId][reqKey]=(progress[epaId][reqKey]||0)+1;
+  // Auto-sync Total Observations (obs) when a sub-category is logged via modal
   if(reqKey!=='obs'){
     const epa=EPAS.find(e=>e.id===epaId);
     const obsReq=epa&&epa.reqs.find(r=>r.k==='obs');
@@ -958,11 +1132,18 @@ window.saveLog=function(){
   }
   closeModal();
   renderEPAs();
-  setTimeout(()=>{const card=document.querySelector(`.epa-card[data-id="${epaId}"]`);if(card&&!card.classList.contains("open")) card.classList.add("open");},50);
+  // re-open the card
+  setTimeout(()=>{
+    const card=document.querySelector(`.epa-card[data-id="${epaId}"]`);
+    if(card&&!card.classList.contains("open")) card.classList.add("open");
+  },50);
   updateStats();
   scheduleSave();
 };
 
+// ─────────────────────────────────────────────
+//  VIEW SWITCHER
+// ─────────────────────────────────────────────
 let modDashboardLoaded=false;
 window.switchView=function(view){
   document.getElementById("vtab-res").classList.toggle("active",view==="resident");
@@ -975,6 +1156,9 @@ window.switchView=function(view){
   if(view==="moderator"&&!modDashboardLoaded) loadModeratorDashboard();
 };
 
+// ─────────────────────────────────────────────
+//  MODERATOR DASHBOARD
+// ─────────────────────────────────────────────
 async function loadModeratorDashboard(){
   const grid=document.getElementById("resident-grid");
   grid.innerHTML=`<div style="color:var(--muted);font-size:.85rem;padding:1rem">Loading residents…</div>`;
@@ -990,6 +1174,7 @@ async function loadModeratorDashboard(){
       const p=progMap[u.username]||{};
       allResidents.push({...u,progressData:p.data||{},logsData:p.logs||{},lastUpdated:p.updatedAt||null});
     });
+    // Default sort: most complete first
     allResidents.sort((a,b)=>calcResidentStats(b.progressData).pct-calcResidentStats(a.progressData).pct);
     renderResidentGrid(allResidents);
     modDashboardLoaded=true;
@@ -997,6 +1182,8 @@ async function loadModeratorDashboard(){
 }
 
 function calcResidentStats(resProgress){
+  const fakeProgress={};
+  // Temporarily swap
   const orig=progress;
   progress=resProgress;
   const done=EPAS.filter(isEPADone).length;
@@ -1016,6 +1203,8 @@ function renderResidentGrid(residents,stageFilter){
   stageFilter=stageFilter||"all";
   const grid=document.getElementById("resident-grid");
   if(!residents.length){grid.innerHTML=`<div style="color:var(--muted);font-size:.85rem;padding:1rem">No residents found.</div>`;return;}
+
+  // Cohort summary bar
   const allStats=residents.map(r=>calcResidentStats(r.progressData));
   const avgPct=Math.round(allStats.reduce((a,s)=>a+s.pct,0)/allStats.length);
   const totalObs=allStats.reduce((a,s)=>a+s.totalObs,0);
@@ -1024,7 +1213,16 @@ function renderResidentGrid(residents,stageFilter){
     const count=residents.filter(r=>r.pgy===y).length;
     return count?`<span style="font-size:.68rem;background:rgba(255,255,255,.12);padding:.15rem .5rem;border-radius:999px;color:rgba(255,255,255,.8)">PGY-${y}: ${count}</span>`:"";
   }).filter(Boolean).join("");
-  const cohortHtml=`<div style="grid-column:1/-1;background:linear-gradient(135deg,var(--navy),var(--teal));color:white;border-radius:12px;padding:1rem 1.5rem;margin-bottom:.25rem"><div style="display:flex;gap:2rem;align-items:center;flex-wrap:wrap"><div style="font-family:'Fraunces',serif;font-size:1rem;opacity:.7;flex:1">Cohort Overview · ${residents.length} residents</div><div style="text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--gold-light)">${avgPct}%</div><div style="font-size:.62rem;opacity:.6;text-transform:uppercase">Avg Complete</div></div><div style="text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--gold-light)">${totalObs}</div><div style="font-size:.62rem;opacity:.6;text-transform:uppercase">Total Obs</div></div><div style="text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--gold-light)">${fullDone}</div><div style="font-size:.62rem;opacity:.6;text-transform:uppercase">Fully Done</div></div></div>${pgyBreakdown?`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">${pgyBreakdown}</div>`:""}</div>`;
+  const cohortHtml=`<div style="grid-column:1/-1;background:linear-gradient(135deg,var(--navy),var(--teal));color:white;border-radius:12px;padding:1rem 1.5rem;margin-bottom:.25rem">
+    <div style="display:flex;gap:2rem;align-items:center;flex-wrap:wrap">
+      <div style="font-family:'Fraunces',serif;font-size:1rem;opacity:.7;flex:1">Cohort Overview · ${residents.length} residents</div>
+      <div style="text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--gold-light)">${avgPct}%</div><div style="font-size:.62rem;opacity:.6;text-transform:uppercase">Avg Complete</div></div>
+      <div style="text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--gold-light)">${totalObs}</div><div style="font-size:.62rem;opacity:.6;text-transform:uppercase">Total Obs</div></div>
+      <div style="text-align:center"><div style="font-size:1.5rem;font-weight:800;color:var(--gold-light)">${fullDone}</div><div style="font-size:.62rem;opacity:.6;text-transform:uppercase">Fully Done</div></div>
+    </div>
+    ${pgyBreakdown?`<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem">${pgyBreakdown}</div>`:""}
+  </div>`;
+
   grid.innerHTML=cohortHtml+residents.map(res=>{
     const stats=calcResidentStats(res.progressData);
     const stagePillsHtml=["TTD","Foundations","Core","TTP"].map(s=>{
@@ -1034,11 +1232,31 @@ function renderResidentGrid(residents,stageFilter){
       const highlight=stageFilter!=="all"&&stageFilter===s;
       return `<span class="stage-pill" style="background:${col};${highlight?"outline:2px solid white;outline-offset:1px":""}">${shortS} ${sc.done}/${sc.total}</span>`;
     }).join("");
-    const flag=stats.pct<30?`<span style="font-size:.65rem;background:#fef2f2;color:#b91c1c;padding:.1rem .4rem;border-radius:999px;font-weight:700;margin-left:.35rem">Needs attention</span>`:stats.pct>=80&&stats.pct<100?`<span style="font-size:.65rem;background:#f0fdf4;color:#059669;padding:.1rem .4rem;border-radius:999px;font-weight:700;margin-left:.35rem">Almost done!</span>`:"";
+    const flag=stats.pct<30?`<span style="font-size:.65rem;background:#fef2f2;color:#b91c1c;padding:.1rem .4rem;border-radius:999px;font-weight:700;margin-left:.35rem">Needs attention</span>`:
+               stats.pct>=80&&stats.pct<100?`<span style="font-size:.65rem;background:#f0fdf4;color:#059669;padding:.1rem .4rem;border-radius:999px;font-weight:700;margin-left:.35rem">Almost done!</span>`:"";
     const lastActiveStr=res.lastUpdated?`<div style="font-size:.65rem;color:var(--muted);margin-top:.2rem;opacity:.7">Last active: ${new Date(res.lastUpdated).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>`:"";
     const pgyBadge=res.pgy?`<span style="font-size:.65rem;font-weight:700;background:#e0f2fe;color:#0369a1;padding:.15rem .5rem;border-radius:999px;margin-left:.4rem">PGY-${res.pgy}</span>`:`<span style="font-size:.65rem;color:var(--muted);margin-left:.4rem;opacity:.6">Year not set</span>`;
     const rotationStr=(res.rotation||res.site)?`<div style="font-size:.68rem;color:var(--muted);margin-top:.15rem">📍 ${[res.rotation,res.site].filter(Boolean).join(" · ")}</div>`:"";
-    return `<div class="res-card" onclick="showResidentDetail('${res.username}')"><div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem"><div><div class="res-name">${res.displayName||res.username}${flag}</div><div style="display:flex;align-items:center;flex-wrap:wrap;gap:.2rem;margin-top:.15rem"><span class="res-username" style="margin:0">@${res.username}</span>${pgyBadge}</div>${rotationStr}${lastActiveStr}</div></div><div class="res-stats" style="margin-top:.75rem"><div class="res-stat"><span class="res-stat-val">${stats.done}</span><div class="res-stat-lbl">EPAs Done</div></div><div class="res-stat"><span class="res-stat-val">${stats.pct}%</span><div class="res-stat-lbl">Complete</div></div><div class="res-stat"><span class="res-stat-val">${stats.totalObs}</span><div class="res-stat-lbl">Observations</div></div></div><div class="res-prog-track"><div class="res-prog-fill" style="width:${stats.pct}%"></div></div><div class="res-pct">${stats.pct}% complete</div><div class="stage-pills">${stagePillsHtml}</div></div>`;
+    return `<div class="res-card" onclick="showResidentDetail('${res.username}')">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem">
+        <div>
+          <div class="res-name">${res.displayName||res.username}${flag}</div>
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:.2rem;margin-top:.15rem">
+            <span class="res-username" style="margin:0">@${res.username}</span>${pgyBadge}
+          </div>
+          ${rotationStr}
+          ${lastActiveStr}
+        </div>
+      </div>
+      <div class="res-stats" style="margin-top:.75rem">
+        <div class="res-stat"><span class="res-stat-val">${stats.done}</span><div class="res-stat-lbl">EPAs Done</div></div>
+        <div class="res-stat"><span class="res-stat-val">${stats.pct}%</span><div class="res-stat-lbl">Complete</div></div>
+        <div class="res-stat"><span class="res-stat-val">${stats.totalObs}</span><div class="res-stat-lbl">Observations</div></div>
+      </div>
+      <div class="res-prog-track"><div class="res-prog-fill" style="width:${stats.pct}%"></div></div>
+      <div class="res-pct">${stats.pct}% complete</div>
+      <div class="stage-pills">${stagePillsHtml}</div>
+    </div>`;
   }).join("");
 }
 
@@ -1048,8 +1266,10 @@ window.filterResidents=function(){
   const pgyFilter=document.getElementById("res-pgy-filter").value;
   const sortBy=document.getElementById("res-sort").value;
   let filtered=allResidents.filter(r=>(r.displayName||"").toLowerCase().includes(q)||(r.username||"").toLowerCase().includes(q));
+  // PGY filter
   if(pgyFilter==="unset") filtered=filtered.filter(r=>!r.pgy);
   else if(pgyFilter!=="all") filtered=filtered.filter(r=>String(r.pgy)===pgyFilter);
+  // Sort
   filtered.sort((a,b)=>{
     const sa=calcResidentStats(a.progressData);
     const sb=calcResidentStats(b.progressData);
@@ -1069,25 +1289,56 @@ window.showResidentDetail=function(username){
   const panel=document.getElementById("res-detail-panel");
   const orig=progress;
   progress=res.progressData;
+  const stages=["TTD","Foundations","Core","TTP"];
   const tableRows=EPAS.map(epa=>{
     const done=isEPADone(epa);
     const met=metReqs(epa);
     const pct=Math.round(met/epa.reqs.length*100);
     const col=STAGE_COLOR[epa.stage];
     const shortS=epa.stage==="Foundations"?"F":epa.stage;
-    return `<tr><td><span class="mstage-badge" style="background:${col}">${shortS} #${epa.num}</span></td><td style="font-size:.82rem;font-weight:500;max-width:280px">${epa.title}</td><td style="text-align:center;font-size:.82rem;font-weight:700;color:${done?"#059669":col}">${met}/${epa.reqs.length}</td><td><div class="mbar"><div class="mbar-fill" style="width:${pct}%;background:${done?"#c9962a":col}"></div></div><span style="font-size:.72rem;color:var(--muted)">${pct}%</span></td><td style="text-align:center">${done?"✅":"⏳"}</td></tr>`;
+    return `<tr>
+      <td><span class="mstage-badge" style="background:${col}">${shortS} #${epa.num}</span></td>
+      <td style="font-size:.82rem;font-weight:500;max-width:280px">${epa.title}</td>
+      <td style="text-align:center;font-size:.82rem;font-weight:700;color:${done?"#059669":col}">${met}/${epa.reqs.length}</td>
+      <td><div class="mbar"><div class="mbar-fill" style="width:${pct}%;background:${done?"#c9962a":col}"></div></div><span style="font-size:.72rem;color:var(--muted)">${pct}%</span></td>
+      <td style="text-align:center">${done?"✅":"⏳"}</td>
+    </tr>`;
   }).join("");
   progress=orig;
-  panel.innerHTML=`<div class="res-detail-header"><div><div class="res-detail-name">${res.displayName||res.username}</div><div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.3rem"><span style="font-size:.75rem;color:var(--muted)">@${res.username}</span>${res.pgy?`<span style="font-size:.7rem;font-weight:700;background:#e0f2fe;color:#0369a1;padding:.15rem .55rem;border-radius:999px">PGY-${res.pgy}</span>`:`<span style="font-size:.7rem;color:var(--muted);opacity:.6">Year not set</span>`}${res.rotation?`<span style="font-size:.7rem;color:var(--muted)">📍 ${res.rotation}${res.site?" · "+res.site:""}</span>`:""}</div></div><div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap"><button class="mod-btn mod-btn-export" style="font-size:.75rem;padding:.4rem .85rem" onclick="printResidentReport('${res.username}')">📄 Print Report</button><button class="close-detail" onclick="document.getElementById('res-detail-panel').classList.remove('show')">Close ✕</button></div></div><div style="overflow-x:auto"><table class="mod-epa-table"><thead><tr><th>EPA</th><th>Title</th><th>Reqs Met</th><th>Progress</th><th>Done</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+  panel.innerHTML=`
+    <div class="res-detail-header">
+      <div>
+        <div class="res-detail-name">${res.displayName||res.username}</div>
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.3rem">
+          <span style="font-size:.75rem;color:var(--muted)">@${res.username}</span>
+          ${res.pgy?`<span style="font-size:.7rem;font-weight:700;background:#e0f2fe;color:#0369a1;padding:.15rem .55rem;border-radius:999px">PGY-${res.pgy}</span>`:`<span style="font-size:.7rem;color:var(--muted);opacity:.6">Year not set</span>`}
+          ${res.rotation?`<span style="font-size:.7rem;color:var(--muted)">📍 ${res.rotation}${res.site?" · "+res.site:""}</span>`:""}
+        </div>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+        <button class="mod-btn mod-btn-export" style="font-size:.75rem;padding:.4rem .85rem" onclick="printResidentReport('${res.username}')">📄 Print Report</button>
+        <button class="close-detail" onclick="document.getElementById('res-detail-panel').classList.remove('show')">Close ✕</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="mod-epa-table">
+        <thead><tr><th>EPA</th><th>Title</th><th>Reqs Met</th><th>Progress</th><th>Done</th></tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>`;
   panel.classList.add("show");
   panel.scrollIntoView({behavior:"smooth",block:"nearest"});
 };
 
+// ─────────────────────────────────────────────
+//  PRINT INDIVIDUAL RESIDENT (from moderator view)
+// ─────────────────────────────────────────────
 window.printResidentReport=function(username){
   const res=allResidents.find(r=>r.username===username);
   if(!res) return;
   const orig=progress;
   progress=res.progressData;
+  // Reuse the existing printReport logic but for this resident
   const name=res.displayName||res.username;
   const date=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
   const stages=["TTD","Foundations","Core","TTP"];
@@ -1101,60 +1352,14 @@ window.printResidentReport=function(username){
     const doneSt=epasInStage.filter(isEPADone).length;
     const pct=Math.round((doneSt/epasInStage.length)*100);
     let stageObs=0;epasInStage.forEach(e=>e.reqs.forEach(r=>{stageObs+=getCount(e.id,r.k);}));
-    return `<div style="border:1px solid #e5e7eb;border-radius:10px;padding:1rem 1.25rem;border-left:5px solid ${stageColors[s]}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem"><div><div style="font-weight:700;font-size:.95rem">${stageNames[s]}</div><div style="font-size:.75rem;color:#6b7280;margin-top:.1rem">${stageObs} observations</div></div><div style="text-align:right"><div style="font-size:1.4rem;font-weight:800;color:${stageColors[s]}">${doneSt}/${epasInStage.length}</div><div style="font-size:.72rem;color:#6b7280">EPAs complete</div></div></div><div style="height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${stageColors[s]};border-radius:999px"></div></div><div style="font-size:.72rem;color:#6b7280;margin-top:.3rem;text-align:right">${pct}%</div></div>`;
-  }).join("");
-  const detailHtml=stages.map(s=>{
-    const epasInStage=EPAS.filter(e=>e.stage===s);
-    const shortStage=s==="Foundations"?"F":s;
-    const epaRows=epasInStage.map(epa=>{
-      const done=isEPADone(epa);
-      const met=metReqs(epa);
-      const pct=Math.round((met/epa.reqs.length)*100);
-      const reqRows=epa.reqs.map(r=>{const cnt=getCount(epa.id,r.k);const rdone=cnt>=r.t;return `<tr><td style="padding:.3rem .5rem;font-size:.75rem;color:#374151;padding-left:1.5rem">${r.l}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center;font-weight:600;color:${rdone?"#059669":"#374151"}">${cnt}/${r.t}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center">${rdone?"✅":"⏳"}</td></tr>`;}).join("");
-      return `<tr style="background:${done?"#f0fdf4":"#f9fafb"}"><td style="padding:.5rem;font-size:.78rem;font-weight:700;color:${stageColors[s]};white-space:nowrap">${shortStage} #${epa.num}</td><td style="padding:.5rem;font-size:.78rem;font-weight:600">${epa.title}</td><td style="padding:.5rem;font-size:.78rem;text-align:center;font-weight:700;color:${done?"#059669":stageColors[s]}">${met}/${epa.reqs.length}</td><td style="padding:.5rem;font-size:.78rem;text-align:center"><div style="height:6px;width:60px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:0 auto"><div style="height:100%;width:${pct}%;background:${done?"#c9962a":stageColors[s]};border-radius:999px"></div></div></td><td style="padding:.5rem;text-align:center">${done?"✅":"⏳"}</td></tr>${reqRows}`;
-    }).join("");
-    return `<div style="margin-bottom:2rem;page-break-inside:avoid"><div style="background:${stageColors[s]};color:white;padding:.6rem 1rem;border-radius:8px 8px 0 0;font-weight:700;font-size:.9rem">${stageNames[s]}</div><table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none"><thead><tr style="background:#f3f4f6"><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">EPA</th><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">Title</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Req Met</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Progress</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Done</th></tr></thead><tbody>${epaRows}</tbody></table></div>`;
-  }).join("");
-  progress=orig;
-  const reportHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>EPA Report — ${name}</title><link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1a1a2e;background:white;padding:2rem;max-width:900px;margin:0 auto}@media print{.noprint{display:none}@page{margin:1.5cm;size:A4}}</style></head><body><div class="noprint" style="text-align:right;margin-bottom:1.5rem"><button onclick="window.print()" style="background:linear-gradient(135deg,#0d7377,#0a2342);color:white;border:none;padding:.75rem 1.5rem;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button></div><div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #0a2342;padding-bottom:1.25rem;margin-bottom:1.5rem"><div><div style="font-family:'Fraunces',serif;font-size:1.8rem;color:#0a2342">EPA Progress Report</div><div style="font-size:.85rem;color:#6b7280;margin-top:.25rem">Pediatrics Residency · Sidra Medicine</div></div><div style="text-align:right"><div style="font-size:.75rem;color:#9ca3af;text-transform:uppercase">Generated by Program Director</div><div style="font-weight:600;font-size:.9rem">${date}</div></div></div><div style="background:linear-gradient(135deg,#0a2342,#0d5c63);color:white;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:.7rem;opacity:.6;text-transform:uppercase">Resident</div><div style="font-family:'Fraunces',serif;font-size:1.5rem;margin-top:.15rem">${name}</div></div><div style="display:flex;gap:2rem"><div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalDone}/${EPAS.length}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">EPAs Complete</div></div><div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalPct}%</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Overall</div></div><div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalObs}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Observations</div></div></div></div><div style="height:10px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin-bottom:1.5rem"><div style="height:100%;width:${totalPct}%;background:linear-gradient(90deg,#14a085,#f0c060);border-radius:999px"></div></div><div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6">Summary by Stage</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:2rem">${stageSummaryHtml}</div><div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6;page-break-before:always">Detailed EPA Progress</div>${detailHtml}<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:.72rem;color:#9ca3af"><span>EPA Tracker · Sidra Medicine Pediatrics Residency · Generated via Moderator Dashboard</span><span>${date}</span></div></body></html>`;
-  const win=window.open("","_blank");
-  win.document.write(reportHtml);
-  win.document.close();
-};
-
-window.exportCohortReport=function(){
-  if(!allResidents.length){alert("Load the dashboard first.");return;}
-  const orig=progress;
-  const date=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
-  const stageColors=STAGE_COLOR;
-  const rows=allResidents.map(res=>{
-    progress=res.progressData;
-    const stats=calcResidentStats(res.progressData);
-    const stageCells=["TTD","Foundations","Core","TTP"].map(s=>{const sc=stats.stageStats[s];return `<td style="text-align:center;font-size:.8rem;color:${stageColors[s]};font-weight:700">${sc.done}/${sc.total}<br><span style="font-size:.68rem;color:#9ca3af">${sc.pct}%</span></td>`;}).join("");
-    return `<tr style="border-bottom:1px solid #f3f4f6"><td style="padding:.65rem .75rem;font-weight:600;font-size:.88rem">${res.displayName||res.username}</td><td style="padding:.65rem .75rem;font-size:.78rem;color:#6b7280">@${res.username}</td><td style="padding:.65rem .75rem;text-align:center;font-family:'Fraunces',serif;font-size:1.1rem;color:#c9962a;font-weight:700">${stats.done}/${stats.total}</td><td style="padding:.65rem .75rem;text-align:center;font-weight:700;color:${stats.pct>=80?"#059669":stats.pct>=50?"#c9962a":"#dc2626"}">${stats.pct}%</td><td style="padding:.65rem .75rem;text-align:center">${stats.totalObs}</td>${stageCells}</tr>`;
-  }).join("");
-  progress=orig;
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cohort EPA Report — Sidra Medicine</title><link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1a1a2e;background:white;padding:2rem;max-width:1100px;margin:0 auto}@media print{.noprint{display:none}@page{size:A4 landscape;margin:1.5cm}}</style></head><body><div class="noprint" style="text-align:right;margin-bottom:1.5rem"><button onclick="window.print()" style="background:linear-gradient(135deg,#0d7377,#0a2342);color:white;border:none;padding:.75rem 1.5rem;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button></div><div style="border-bottom:3px solid #0a2342;padding-bottom:1rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:flex-end"><div><div style="font-family:'Fraunces',serif;font-size:1.8rem;color:#0a2342">Cohort EPA Progress Report</div><div style="font-size:.85rem;color:#6b7280;margin-top:.3rem">Pediatrics Residency · Sidra Medicine · Royal College of Physicians and Surgeons of Canada</div></div><div style="text-align:right;font-size:.82rem;color:#9ca3af">Generated<br><strong style="color:#374151">${date}</strong></div></div><table style="width:100%;border-collapse:collapse"><thead><tr style="background:#f3f4f6"><th style="padding:.6rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Resident</th><th style="padding:.6rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Username</th><th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">EPAs Done</th><th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Overall %</th><th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Observations</th><th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#2563eb">TTD</th><th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#059669">Foundations</th><th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#7c3aed">Core</th><th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#dc2626">TTP</th></tr></thead><tbody>${rows}</tbody></table><div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:.72rem;color:#9ca3af"><span>EPA Tracker · Sidra Medicine Pediatrics Residency</span><span>Total residents: ${allResidents.length} · Generated ${date}</span></div></body></html>`;
-  const win=window.open("","_blank");
-  win.document.write(html);
-  win.document.close();
-};
-
-window.printReport=function(){
-  const name=currentUser?.displayName||currentUser?.username||"Resident";
-  const date=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
-  const stages=["TTD","Foundations","Core","TTP"];
-  const stageColors=STAGE_COLOR;
-  const stageNames=STAGE_NAMES;
-  const totalDone=EPAS.filter(isEPADone).length;
-  const totalPct=Math.round((totalDone/EPAS.length)*100);
-  let totalObs=0; EPAS.forEach(e=>e.reqs.forEach(r=>{totalObs+=getCount(e.id,r.k);}));
-  const stageSummaryHtml=stages.map(s=>{
-    const epasInStage=EPAS.filter(e=>e.stage===s);
-    const doneSt=epasInStage.filter(isEPADone).length;
-    const pct=Math.round((doneSt/epasInStage.length)*100);
-    let stageObs=0;epasInStage.forEach(e=>e.reqs.forEach(r=>{stageObs+=getCount(e.id,r.k);}));
-    return `<div style="border:1px solid #e5e7eb;border-radius:10px;padding:1rem 1.25rem;border-left:5px solid ${stageColors[s]}"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem"><div><div style="font-weight:700;font-size:.95rem">${stageNames[s]}</div><div style="font-size:.75rem;color:#6b7280;margin-top:.1rem">${stageObs} observations</div></div><div style="text-align:right"><div style="font-size:1.4rem;font-weight:800;color:${stageColors[s]}">${doneSt}/${epasInStage.length}</div><div style="font-size:.72rem;color:#6b7280">EPAs complete</div></div></div><div style="height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${stageColors[s]};border-radius:999px"></div></div><div style="font-size:.72rem;color:#6b7280;margin-top:.3rem;text-align:right">${pct}%</div></div>`;
+    return `<div style="border:1px solid #e5e7eb;border-radius:10px;padding:1rem 1.25rem;border-left:5px solid ${stageColors[s]}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+        <div><div style="font-weight:700;font-size:.95rem">${stageNames[s]}</div><div style="font-size:.75rem;color:#6b7280;margin-top:.1rem">${stageObs} observations</div></div>
+        <div style="text-align:right"><div style="font-size:1.4rem;font-weight:800;color:${stageColors[s]}">${doneSt}/${epasInStage.length}</div><div style="font-size:.72rem;color:#6b7280">EPAs complete</div></div>
+      </div>
+      <div style="height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${stageColors[s]};border-radius:999px"></div></div>
+      <div style="font-size:.72rem;color:#6b7280;margin-top:.3rem;text-align:right">${pct}%</div>
+    </div>`;
   }).join("");
   const detailHtml=stages.map(s=>{
     const epasInStage=EPAS.filter(e=>e.stage===s);
@@ -1166,22 +1371,213 @@ window.printReport=function(){
       const reqRows=epa.reqs.map(r=>{
         const cnt=getCount(epa.id,r.k);
         const rdone=cnt>=r.t;
-        const entryLogs=getLogs(epa.id,r.k);
-        const logRows=entryLogs.map(lg=>`<tr style="background:#fafafa"><td colspan="2" style="padding:.2rem .5rem .2rem 1.5rem;font-size:.68rem;color:#6b7280">${lg.type==="sim"?"🎭 Sim":"🏥 Real"} · ${lg.observer==="SR"?"Sr. Resident":lg.observer}${lg.date?" · "+lg.date:""}${lg.rotation?" · "+lg.rotation:""}${lg.notes?` · 📝 ${lg.notes}`:""}</td><td></td></tr>`).join("");
-        return `<tr><td style="padding:.3rem .5rem;font-size:.75rem;color:#374151;padding-left:1.5rem">${r.l}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center;font-weight:600;color:${rdone?"#059669":"#374151"}">${cnt}/${r.t}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center">${rdone?"✅":"⏳"}</td></tr>${logRows}`;
+        return `<tr><td style="padding:.3rem .5rem;font-size:.75rem;color:#374151;padding-left:1.5rem">${r.l}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center;font-weight:600;color:${rdone?"#059669":"#374151"}">${cnt}/${r.t}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center">${rdone?"✅":"⏳"}</td></tr>`;
       }).join("");
-      return `<tr style="background:${done?"#f0fdf4":"#f9fafb"}"><td style="padding:.5rem;font-size:.78rem;font-weight:700;color:${stageColors[s]};white-space:nowrap">${shortStage} #${epa.num}</td><td style="padding:.5rem;font-size:.78rem;font-weight:600">${epa.title}</td><td style="padding:.5rem;font-size:.78rem;text-align:center;font-weight:700;color:${done?"#059669":stageColors[s]}">${met}/${epa.reqs.length}</td><td style="padding:.5rem;font-size:.78rem;text-align:center"><div style="height:6px;width:60px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:0 auto"><div style="height:100%;width:${pct}%;background:${done?"#c9962a":stageColors[s]};border-radius:999px"></div></div></td><td style="padding:.5rem;text-align:center">${done?"✅":"⏳"}</td></tr>${reqRows}`;
+      return `<tr style="background:${done?"#f0fdf4":"#f9fafb"}">
+        <td style="padding:.5rem;font-size:.78rem;font-weight:700;color:${stageColors[s]};white-space:nowrap">${shortStage} #${epa.num}</td>
+        <td style="padding:.5rem;font-size:.78rem;font-weight:600">${epa.title}</td>
+        <td style="padding:.5rem;font-size:.78rem;text-align:center;font-weight:700;color:${done?"#059669":stageColors[s]}">${met}/${epa.reqs.length}</td>
+        <td style="padding:.5rem;font-size:.78rem;text-align:center"><div style="height:6px;width:60px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:0 auto"><div style="height:100%;width:${pct}%;background:${done?"#c9962a":stageColors[s]};border-radius:999px"></div></div></td>
+        <td style="padding:.5rem;text-align:center">${done?"✅":"⏳"}</td>
+      </tr>${reqRows}`;
     }).join("");
-    return `<div style="margin-bottom:2rem;page-break-inside:avoid"><div style="background:${stageColors[s]};color:white;padding:.6rem 1rem;border-radius:8px 8px 0 0;font-weight:700;font-size:.9rem">${stageNames[s]}</div><table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none"><thead><tr style="background:#f3f4f6"><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">EPA</th><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">Title</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Req Met</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Progress</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Done</th></tr></thead><tbody>${epaRows}</tbody></table></div>`;
+    return `<div style="margin-bottom:2rem;page-break-inside:avoid">
+      <div style="background:${stageColors[s]};color:white;padding:.6rem 1rem;border-radius:8px 8px 0 0;font-weight:700;font-size:.9rem">${stageNames[s]}</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none">
+        <thead><tr style="background:#f3f4f6"><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">EPA</th><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">Title</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Req Met</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Progress</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Done</th></tr></thead>
+        <tbody>${epaRows}</tbody>
+      </table>
+    </div>`;
   }).join("");
-  const reportHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>EPA Report — ${name}</title><link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1a1a2e;background:white;padding:2rem;max-width:900px;margin:0 auto}@media print{.noprint{display:none}@page{margin:1.5cm;size:A4}}</style></head><body><div class="noprint" style="text-align:right;margin-bottom:1.5rem"><button onclick="window.print()" style="background:linear-gradient(135deg,#0d7377,#0a2342);color:white;border:none;padding:.75rem 1.5rem;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button></div><div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #0a2342;padding-bottom:1.25rem;margin-bottom:1.5rem"><div><div style="font-family:'Fraunces',serif;font-size:1.8rem;color:#0a2342">EPA Progress Report</div><div style="font-size:.85rem;color:#6b7280;margin-top:.25rem">Pediatrics Residency · Sidra Medicine</div></div><div style="text-align:right"><div style="font-size:.75rem;color:#9ca3af;text-transform:uppercase">Generated</div><div style="font-weight:600;font-size:.9rem">${date}</div></div></div><div style="background:linear-gradient(135deg,#0a2342,#0d5c63);color:white;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:.7rem;opacity:.6;text-transform:uppercase">Resident</div><div style="font-family:'Fraunces',serif;font-size:1.5rem;margin-top:.15rem">${name}</div></div><div style="display:flex;gap:2rem"><div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalDone}/${EPAS.length}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">EPAs Complete</div></div><div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalPct}%</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Overall</div></div><div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalObs}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Observations</div></div></div></div><div style="height:10px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin-bottom:1.5rem"><div style="height:100%;width:${totalPct}%;background:linear-gradient(90deg,#14a085,#f0c060);border-radius:999px"></div></div><div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6">Summary by Stage</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:2rem">${stageSummaryHtml}</div><div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6;page-break-before:always">Detailed EPA Progress</div>${detailHtml}<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:.72rem;color:#9ca3af"><span>EPA Tracker · Sidra Medicine Pediatrics Residency</span><span>Generated ${date}</span></div></body></html>`;
+  progress=orig;
+  const reportHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>EPA Report — ${name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1a1a2e;background:white;padding:2rem;max-width:900px;margin:0 auto}@media print{.noprint{display:none}@page{margin:1.5cm;size:A4}}</style></head>
+<body>
+<div class="noprint" style="text-align:right;margin-bottom:1.5rem"><button onclick="window.print()" style="background:linear-gradient(135deg,#0d7377,#0a2342);color:white;border:none;padding:.75rem 1.5rem;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button></div>
+<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #0a2342;padding-bottom:1.25rem;margin-bottom:1.5rem">
+  <div><div style="font-family:'Fraunces',serif;font-size:1.8rem;color:#0a2342">EPA Progress Report</div><div style="font-size:.85rem;color:#6b7280;margin-top:.25rem">Pediatrics Residency · Sidra Medicine</div></div>
+  <div style="text-align:right"><div style="font-size:.75rem;color:#9ca3af;text-transform:uppercase">Generated by Program Director</div><div style="font-weight:600;font-size:.9rem">${date}</div></div>
+</div>
+<div style="background:linear-gradient(135deg,#0a2342,#0d5c63);color:white;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center">
+  <div><div style="font-size:.7rem;opacity:.6;text-transform:uppercase">Resident</div><div style="font-family:'Fraunces',serif;font-size:1.5rem;margin-top:.15rem">${name}</div></div>
+  <div style="display:flex;gap:2rem">
+    <div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalDone}/${EPAS.length}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">EPAs Complete</div></div>
+    <div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalPct}%</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Overall</div></div>
+    <div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalObs}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Observations</div></div>
+  </div>
+</div>
+<div style="height:10px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin-bottom:1.5rem"><div style="height:100%;width:${totalPct}%;background:linear-gradient(90deg,#14a085,#f0c060);border-radius:999px"></div></div>
+<div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6">Summary by Stage</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:2rem">${stageSummaryHtml}</div>
+<div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6;page-break-before:always">Detailed EPA Progress</div>
+${detailHtml}
+<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:.72rem;color:#9ca3af"><span>EPA Tracker · Sidra Medicine Pediatrics Residency · Generated via Moderator Dashboard</span><span>${date}</span></div>
+</body></html>`;
   const win=window.open("","_blank");
   win.document.write(reportHtml);
   win.document.close();
 };
 
+
+window.exportCohortReport=function(){
+  if(!allResidents.length){alert("Load the dashboard first.");return;}
+  const orig=progress;
+  const date=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
+  const stageColors=STAGE_COLOR;
+  const rows=allResidents.map(res=>{
+    progress=res.progressData;
+    const stats=calcResidentStats(res.progressData);
+    const stageCells=["TTD","Foundations","Core","TTP"].map(s=>{
+      const sc=stats.stageStats[s];
+      return `<td style="text-align:center;font-size:.8rem;color:${stageColors[s]};font-weight:700">${sc.done}/${sc.total}<br><span style="font-size:.68rem;color:#9ca3af">${sc.pct}%</span></td>`;
+    }).join("");
+    return `<tr style="border-bottom:1px solid #f3f4f6">
+      <td style="padding:.65rem .75rem;font-weight:600;font-size:.88rem">${res.displayName||res.username}</td>
+      <td style="padding:.65rem .75rem;font-size:.78rem;color:#6b7280">@${res.username}</td>
+      <td style="padding:.65rem .75rem;text-align:center;font-family:'Fraunces',serif;font-size:1.1rem;color:#c9962a;font-weight:700">${stats.done}/${stats.total}</td>
+      <td style="padding:.65rem .75rem;text-align:center;font-weight:700;color:${stats.pct>=80?"#059669":stats.pct>=50?"#c9962a":"#dc2626"}">${stats.pct}%</td>
+      <td style="padding:.65rem .75rem;text-align:center">${stats.totalObs}</td>
+      ${stageCells}
+    </tr>`;
+  }).join("");
+  progress=orig;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>Cohort EPA Report — Sidra Medicine</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1a1a2e;background:white;padding:2rem;max-width:1100px;margin:0 auto}@media print{.noprint{display:none}@page{size:A4 landscape;margin:1.5cm}}</style>
+</head><body>
+<div class="noprint" style="text-align:right;margin-bottom:1.5rem">
+  <button onclick="window.print()" style="background:linear-gradient(135deg,#0d7377,#0a2342);color:white;border:none;padding:.75rem 1.5rem;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button>
+</div>
+<div style="border-bottom:3px solid #0a2342;padding-bottom:1rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:flex-end">
+  <div>
+    <div style="font-family:'Fraunces',serif;font-size:1.8rem;color:#0a2342">Cohort EPA Progress Report</div>
+    <div style="font-size:.85rem;color:#6b7280;margin-top:.3rem">Pediatrics Residency · Sidra Medicine · Royal College of Physicians and Surgeons of Canada</div>
+  </div>
+  <div style="text-align:right;font-size:.82rem;color:#9ca3af">Generated<br><strong style="color:#374151">${date}</strong></div>
+</div>
+<table style="width:100%;border-collapse:collapse">
+  <thead>
+    <tr style="background:#f3f4f6">
+      <th style="padding:.6rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Resident</th>
+      <th style="padding:.6rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Username</th>
+      <th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">EPAs Done</th>
+      <th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Overall %</th>
+      <th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280">Observations</th>
+      <th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#2563eb">TTD</th>
+      <th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#059669">Foundations</th>
+      <th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#7c3aed">Core</th>
+      <th style="padding:.6rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:#dc2626">TTP</th>
+    </tr>
+  </thead>
+  <tbody>${rows}</tbody>
+</table>
+<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:.72rem;color:#9ca3af">
+  <span>EPA Tracker · Sidra Medicine Pediatrics Residency</span>
+  <span>Total residents: ${allResidents.length} · Generated ${date}</span>
+</div>
+</body></html>`;
+  const win=window.open("","_blank");
+  win.document.write(html);
+  win.document.close();
+};
+
+// ─────────────────────────────────────────────
+//  INDIVIDUAL PRINT REPORT
+// ─────────────────────────────────────────────
+window.printReport=function(){
+  const name=currentUser?.displayName||currentUser?.username||"Resident";
+  const date=new Date().toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"});
+  const stages=["TTD","Foundations","Core","TTP"];
+  const stageColors=STAGE_COLOR;
+  const stageNames=STAGE_NAMES;
+  const totalDone=EPAS.filter(isEPADone).length;
+  const totalPct=Math.round((totalDone/EPAS.length)*100);
+  let totalObs=0; EPAS.forEach(e=>e.reqs.forEach(r=>{totalObs+=getCount(e.id,r.k);}));
+
+  const stageSummaryHtml=stages.map(s=>{
+    const epasInStage=EPAS.filter(e=>e.stage===s);
+    const doneSt=epasInStage.filter(isEPADone).length;
+    const pct=Math.round((doneSt/epasInStage.length)*100);
+    let stageObs=0;epasInStage.forEach(e=>e.reqs.forEach(r=>{stageObs+=getCount(e.id,r.k);}));
+    return `<div style="border:1px solid #e5e7eb;border-radius:10px;padding:1rem 1.25rem;border-left:5px solid ${stageColors[s]}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+        <div><div style="font-weight:700;font-size:.95rem">${stageNames[s]}</div><div style="font-size:.75rem;color:#6b7280;margin-top:.1rem">${stageObs} observations</div></div>
+        <div style="text-align:right"><div style="font-size:1.4rem;font-weight:800;color:${stageColors[s]}">${doneSt}/${epasInStage.length}</div><div style="font-size:.72rem;color:#6b7280">EPAs complete</div></div>
+      </div>
+      <div style="height:8px;background:#f3f4f6;border-radius:999px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${stageColors[s]};border-radius:999px"></div></div>
+      <div style="font-size:.72rem;color:#6b7280;margin-top:.3rem;text-align:right">${pct}%</div>
+    </div>`;
+  }).join("");
+
+  const detailHtml=stages.map(s=>{
+    const epasInStage=EPAS.filter(e=>e.stage===s);
+    const shortStage=s==="Foundations"?"F":s;
+    const epaRows=epasInStage.map(epa=>{
+      const done=isEPADone(epa);
+      const met=metReqs(epa);
+      const pct=Math.round((met/epa.reqs.length)*100);
+      const reqRows=epa.reqs.map(r=>{
+        const cnt=getCount(epa.id,r.k);
+        const rdone=cnt>=r.t;
+        const entryLogs=getLogs(epa.id,r.k);
+        const logRows=entryLogs.map(lg=>`<tr style="background:#fafafa"><td colspan="2" style="padding:.2rem .5rem .2rem 1.5rem;font-size:.68rem;color:#6b7280">
+          ${lg.type==="sim"?"🎭 Sim":"🏥 Real"} · ${lg.observer==="SR"?"Sr. Resident":lg.observer}${lg.date?" · "+lg.date:""}${lg.rotation?" · "+lg.rotation:""}${lg.notes?` · 📝 ${lg.notes}`:""}
+        </td><td></td></tr>`).join("");
+        return `<tr><td style="padding:.3rem .5rem;font-size:.75rem;color:#374151;padding-left:1.5rem">${r.l}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center;font-weight:600;color:${rdone?"#059669":"#374151"}">${cnt}/${r.t}</td><td style="padding:.3rem .5rem;font-size:.75rem;text-align:center">${rdone?"✅":"⏳"}</td></tr>${logRows}`;
+      }).join("");
+      return `<tr style="background:${done?"#f0fdf4":"#f9fafb"}">
+        <td style="padding:.5rem;font-size:.78rem;font-weight:700;color:${stageColors[s]};white-space:nowrap">${shortStage} #${epa.num}</td>
+        <td style="padding:.5rem;font-size:.78rem;font-weight:600">${epa.title}</td>
+        <td style="padding:.5rem;font-size:.78rem;text-align:center;font-weight:700;color:${done?"#059669":stageColors[s]}">${met}/${epa.reqs.length}</td>
+        <td style="padding:.5rem;font-size:.78rem;text-align:center"><div style="height:6px;width:60px;background:#e5e7eb;border-radius:999px;overflow:hidden;margin:0 auto"><div style="height:100%;width:${pct}%;background:${done?"#c9962a":stageColors[s]};border-radius:999px"></div></div></td>
+        <td style="padding:.5rem;text-align:center">${done?"✅":"⏳"}</td>
+      </tr>${reqRows}`;
+    }).join("");
+    return `<div style="margin-bottom:2rem;page-break-inside:avoid">
+      <div style="background:${stageColors[s]};color:white;padding:.6rem 1rem;border-radius:8px 8px 0 0;font-weight:700;font-size:.9rem">${stageNames[s]}</div>
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:none">
+        <thead><tr style="background:#f3f4f6"><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">EPA</th><th style="padding:.5rem;font-size:.72rem;text-align:left;color:#6b7280;font-weight:600">Title</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Req Met</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Progress</th><th style="padding:.5rem;font-size:.72rem;text-align:center;color:#6b7280;font-weight:600">Done</th></tr></thead>
+        <tbody>${epaRows}</tbody>
+      </table>
+    </div>`;
+  }).join("");
+
+  const reportHtml=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>EPA Report — ${name}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'DM Sans',sans-serif;color:#1a1a2e;background:white;padding:2rem;max-width:900px;margin:0 auto}@media print{.noprint{display:none}@page{margin:1.5cm;size:A4}}</style></head>
+<body>
+<div class="noprint" style="text-align:right;margin-bottom:1.5rem"><button onclick="window.print()" style="background:linear-gradient(135deg,#0d7377,#0a2342);color:white;border:none;padding:.75rem 1.5rem;border-radius:10px;font-size:.95rem;font-weight:700;cursor:pointer">🖨️ Print / Save as PDF</button></div>
+<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #0a2342;padding-bottom:1.25rem;margin-bottom:1.5rem">
+  <div><div style="font-family:'Fraunces',serif;font-size:1.8rem;color:#0a2342">EPA Progress Report</div><div style="font-size:.85rem;color:#6b7280;margin-top:.25rem">Pediatrics Residency · Sidra Medicine</div></div>
+  <div style="text-align:right"><div style="font-size:.75rem;color:#9ca3af;text-transform:uppercase">Generated</div><div style="font-weight:600;font-size:.9rem">${date}</div></div>
+</div>
+<div style="background:linear-gradient(135deg,#0a2342,#0d5c63);color:white;border-radius:12px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center">
+  <div><div style="font-size:.7rem;opacity:.6;text-transform:uppercase">Resident</div><div style="font-family:'Fraunces',serif;font-size:1.5rem;margin-top:.15rem">${name}</div></div>
+  <div style="display:flex;gap:2rem">
+    <div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalDone}/${EPAS.length}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">EPAs Complete</div></div>
+    <div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalPct}%</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Overall</div></div>
+    <div style="text-align:center"><div style="font-size:1.8rem;font-weight:800;color:#f0c060">${totalObs}</div><div style="font-size:.65rem;opacity:.6;text-transform:uppercase">Observations</div></div>
+  </div>
+</div>
+<div style="height:10px;background:#f3f4f6;border-radius:999px;overflow:hidden;margin-bottom:1.5rem"><div style="height:100%;width:${totalPct}%;background:linear-gradient(90deg,#14a085,#f0c060);border-radius:999px"></div></div>
+<div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6">Summary by Stage</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:2rem">${stageSummaryHtml}</div>
+<div style="font-family:'Fraunces',serif;font-size:1.2rem;color:#0a2342;margin-bottom:1rem;padding-bottom:.5rem;border-bottom:2px solid #f3f4f6;page-break-before:always">Detailed EPA Progress</div>
+${detailHtml}
+<div style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;font-size:.72rem;color:#9ca3af"><span>EPA Tracker · Sidra Medicine Pediatrics Residency</span><span>Generated ${date}</span></div>
+</body></html>`;
+  const win=window.open("","_blank");
+  win.document.write(reportHtml);
+  win.document.close();
+};
+
+// Enter key shortcuts
 ["login-user","login-pass"].forEach(id=>{document.getElementById(id)?.addEventListener("keydown",e=>{if(e.key==="Enter")window.doLogin();});});
 ["reg-name","reg-user","reg-pass","reg-pass2","reg-modcode"].forEach(id=>{document.getElementById(id)?.addEventListener("keydown",e=>{if(e.key==="Enter")window.doRegister();});});
+
+// Close modal on overlay click
 document.getElementById("log-modal").addEventListener("click",function(e){if(e.target===this)closeModal();});
 </script>
 </body>
